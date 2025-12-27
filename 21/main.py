@@ -40,6 +40,9 @@ def main() -> None:
     window = GameWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
     window.setup()
 
+    if args.mode in ["play", "rl", "watch"]:
+        window.auto_restart_visual = True
+
     if args.mode == "rl":
         env = BreakoutEnv(window)
         policy = ScriptedPolicy()
