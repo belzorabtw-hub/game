@@ -63,7 +63,7 @@ def main() -> None:
         print(f"[TRAIN] Starting training on {device.type.upper()}")
         
         agent = DQNAgent(
-            obs_dim=5,
+            obs_dim=7,
             n_actions=3,
             model_path=args.model_path,
         )

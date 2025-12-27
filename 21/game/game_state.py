@@ -58,6 +58,7 @@ class GameWindow(arcade.Window):
         self.action_provider: Optional[Callable[[GameWindow], int]] = None
         self.steps_in_current_episode = 0
         self.total_bricks_destroyed = 0
+        self.total_bricks = 0
 
     def setup(self) -> None:
         self.is_game_over = False
@@ -97,6 +98,7 @@ class GameWindow(arcade.Window):
         self.ball.normalize_velocity()
 
         self.bricks = self._build_bricks()
+        self.total_bricks = len(self.bricks)
 
         if self.action_provider is not None:
             self.visual_episode += 1
@@ -172,38 +174,18 @@ class GameWindow(arcade.Window):
                 anchor_y="center",
             )
             
-            if self.action_provider is None:
-                arcade.draw_text(
-                    "Нажми R чтобы перезапустить",
-                    self.width / 2,
-                    self.height / 2 - 30,
-                    TEXT_COLOR,
-                    font_size=STATUS_FONT_SIZE,
-                    anchor_x="center",
-                    anchor_y="center",
-                )
-            else:
-                arcade.draw_text(
-                    "Автоматический перезапуск...",
-                    self.width / 2,
-                    self.height / 2 - 30,
-                    TEXT_COLOR,
-                    font_size=STATUS_FONT_SIZE,
-                    anchor_x="center",
-                    anchor_y="center",
-                )
+            arcade.draw_text(
+                "Нажми R чтобы перезапустить",
+                self.width / 2,
+                self.height / 2 - 30,
+                TEXT_COLOR,
+                font_size=STATUS_FONT_SIZE,
+                anchor_x="center",
+                anchor_y="center",
+            )
 
     def on_update(self, delta_time: float) -> None:
         if self.paddle is None or self.ball is None:
-            return
-
-        # AUTO-RESTART: если игра окончена и есть action_provider, мгновенно перезапускаем
-        if self.is_game_over and self.action_provider is not None:
-            win_status = "WIN" if self.is_win else "LOSE"
-            print(f"[VISUAL] episode={self.visual_episode} finished: {win_status}, "
-                  f"steps={self.steps_in_current_episode}, "
-                  f"bricks_destroyed={self.bricks_destroyed_in_episode}")
-            self.setup()
             return
 
         if self.is_game_over:

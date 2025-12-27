@@ -23,7 +23,7 @@ class EvaluatorThread(threading.Thread):
         n_episodes: int = 100,
         log_interval: int = 10,
         max_episode_steps: int = 6000,
-        obs_dim: int = 5,
+        obs_dim: int = 7,
         n_actions: int = 3,
     ) -> None:
         super().__init__(daemon=True)
@@ -57,7 +57,7 @@ class EvaluatorThread(threading.Thread):
         self.model.load_state_dict(state["policy"])
         print(f"[EVAL] Model loaded from {self.model_path}")
     
-    def select_action(self, obs: Tuple[float, float, float, float, float]) -> int:
+    def select_action(self, obs: Tuple[float, float, float, float, float, float, float]) -> int:
         """Выбор действия по argmax(Q) без exploration"""
         with torch.no_grad():
             x = torch.tensor(obs, dtype=torch.float32, device=self.device).unsqueeze(0)

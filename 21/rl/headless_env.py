@@ -35,8 +35,8 @@ from game.physics import reflect_ball_from_brick, reflect_ball_from_paddle, refl
 class HeadlessBreakoutEnv:
     """
     Headless-версия среды для быстрых эпизодов без рендера.
-    API совпадает по смыслу с BreakoutEnv: reset/step и obs (5 значений), actions 0/1/2.
-    Obs: (ball_x, ball_y, ball_vx, ball_vy, paddle_x) в [-1..1]
+    API совпадает по смыслу с BreakoutEnv: reset/step и obs (7 значений), actions 0/1/2.
+    Obs: (ball_x, ball_y, ball_vx, ball_vy, paddle_x, bricks_left_norm, top_brick_y_norm) в [-1..1]
     """
 
     def __init__(self, fixed_dt: float = 1 / 120) -> None:
@@ -47,6 +47,7 @@ class HeadlessBreakoutEnv:
         self.paddle: Paddle | None = None
         self.ball: Ball | None = None
         self.bricks: List[Brick] = []
+        self.total_bricks = 0
 
         self.is_game_over = False
         self.is_win = False
@@ -79,7 +80,7 @@ class HeadlessBreakoutEnv:
         self._level_angle_min_deg = int(a_min)
         self._level_angle_max_deg = int(a_max)
 
-    def reset(self) -> Tuple[float, float, float, float, float]:
+    def reset(self) -> Tuple[float, float, float, float, float, float, float]:
         self.is_game_over = False
         self.is_win = False
 
@@ -134,6 +135,7 @@ class HeadlessBreakoutEnv:
         self.ball.normalize_velocity()
 
         self.bricks = self._build_bricks()
+        self.total_bricks = len(self.bricks)
         return self.get_obs()
 
     def _build_bricks(self) -> List[Brick]:
@@ -157,7 +159,7 @@ class HeadlessBreakoutEnv:
                 )
         return bricks
 
-    def get_obs(self) -> Tuple[float, float, float, float, float]:
+    def get_obs(self) -> Tuple[float, float, float, float, float, float, float]:
         assert self.paddle is not None
         assert self.ball is not None
 
@@ -169,16 +171,26 @@ class HeadlessBreakoutEnv:
         ball_vx = float(self.ball.dx)
         ball_vy = float(self.ball.dy)
         paddle_x = (self.paddle.x / w) * 2.0 - 1.0
+        bricks_left = float(len(self.bricks))
+        total_bricks = max(1.0, float(getattr(self, "total_bricks", len(self.bricks))))
+        bricks_left_norm = (bricks_left / total_bricks) * 2.0 - 1.0
+        if len(self.bricks) > 0:
+            top_brick_y = max(b.y for b in self.bricks)
+            top_brick_y_norm = (top_brick_y / h) * 2.0 - 1.0
+        else:
+            top_brick_y_norm = -1.0
 
         ball_x = max(-1.0, min(1.0, ball_x))
         ball_y = max(-1.0, min(1.0, ball_y))
         ball_vx = max(-1.0, min(1.0, ball_vx))
         ball_vy = max(-1.0, min(1.0, ball_vy))
         paddle_x = max(-1.0, min(1.0, paddle_x))
+        bricks_left_norm = max(-1.0, min(1.0, bricks_left_norm))
+        top_brick_y_norm = max(-1.0, min(1.0, top_brick_y_norm))
 
-        return (ball_x, ball_y, ball_vx, ball_vy, paddle_x)
+        return (ball_x, ball_y, ball_vx, ball_vy, paddle_x, bricks_left_norm, top_brick_y_norm)
 
-    def step(self, action: int) -> Tuple[Tuple[float, float, float, float, float], float, bool, Dict]:
+    def step(self, action: int) -> Tuple[Tuple[float, float, float, float, float, float, float], float, bool, Dict]:
         if self.paddle is None or self.ball is None:
             raise RuntimeError("Env not reset()")
 

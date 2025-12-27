@@ -15,7 +15,7 @@ class RenderPolicy:
     и выбирает action по argmax(Q).
     """
 
-    def __init__(self, model_path: str, obs_dim: int = 5, n_actions: int = 3) -> None:
+    def __init__(self, model_path: str, obs_dim: int = 7, n_actions: int = 3) -> None:
         self.model_path = model_path
         self.obs_dim = obs_dim
         self.n_actions = n_actions
@@ -52,7 +52,7 @@ class RenderPolicy:
         self.model.eval()
         self._has_weights = True
 
-    def act(self, obs: Tuple[float, float, float, float, float]) -> int:
+    def act(self, obs: Tuple[float, float, float, float, float, float, float]) -> int:
         with torch.no_grad():
             x = torch.tensor(obs, dtype=torch.float32, device=self.device).unsqueeze(0)
             q = self.model(x)

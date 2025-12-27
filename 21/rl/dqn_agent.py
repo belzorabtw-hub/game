@@ -73,7 +73,7 @@ class DQNAgent:
             self.target_net.load_state_dict(self.policy_net.state_dict())
             self.target_net.eval()
 
-    def select_action(self, obs: Tuple[float, float, float, float, float], epsilon: float) -> int:
+    def select_action(self, obs: Tuple[float, float, float, float, float, float, float], epsilon: float) -> int:
         # Генерация случайного числа на GPU для консистентности
         if torch.rand(1, device=self.device).item() < epsilon:
             return int(torch.randint(low=0, high=self.n_actions, size=(1,), device=self.device).item())
