@@ -35,7 +35,13 @@ from game.physics import reflect_ball_from_brick, reflect_ball_from_paddle, refl
 
 
 class GameWindow(arcade.Window):
-    def __init__(self, width: int, height: int, title: str) -> None:
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        title: str,
+        auto_restart_visual: bool = False,
+    ) -> None:
         super().__init__(width, height, title, update_rate=1 / 60)
         arcade.set_background_color(BACKGROUND_COLOR)
 
@@ -56,6 +62,7 @@ class GameWindow(arcade.Window):
 
         # Для auto-restart в режиме с action_provider
         self.action_provider: Optional[Callable[[GameWindow], int]] = None
+        self.auto_restart_visual = auto_restart_visual
         self.steps_in_current_episode = 0
         self.total_bricks_destroyed = 0
         self.total_bricks = 0
@@ -189,6 +196,8 @@ class GameWindow(arcade.Window):
             return
 
         if self.is_game_over:
+            if self.auto_restart_visual:
+                self.setup()
             return
 
         self.steps_in_current_episode += 1
