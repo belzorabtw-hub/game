@@ -15,8 +15,8 @@ class ScriptedPolicy:
     def __init__(self, deadzone: float = 0.03) -> None:
         self.deadzone = deadzone
 
-    def act(self, obs: Tuple[float, float, float, float, float]) -> int:
-        ball_x, _ball_y, _ball_vx, _ball_vy, paddle_x = obs
+    def act(self, obs: Tuple[float, float, float, float, float, float, float]) -> int:
+        ball_x, _ball_y, _ball_vx, _ball_vy, paddle_x, _bricks_left, _top_brick_y = obs
 
         diff = ball_x - paddle_x
         if diff > self.deadzone:

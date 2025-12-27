@@ -8,10 +8,10 @@ from typing import Deque, List, Tuple
 
 @dataclass
 class Transition:
-    obs: Tuple[float, float, float, float, float]
+    obs: Tuple[float, float, float, float, float, float, float]
     action: int
     reward: float
-    next_obs: Tuple[float, float, float, float, float]
+    next_obs: Tuple[float, float, float, float, float, float, float]
     done: bool
 
 

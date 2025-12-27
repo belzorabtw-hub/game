@@ -25,14 +25,15 @@ class BreakoutEnv:
         self.window = window
         self.fixed_dt = fixed_dt
 
-    def reset(self) -> Tuple[float, float, float, float, float]:
+    def reset(self) -> Tuple[float, float, float, float, float, float, float]:
         self.window.setup()
         return self.get_obs()
 
-    def get_obs(self) -> Tuple[float, float, float, float, float]:
+    def get_obs(self) -> Tuple[float, float, float, float, float, float, float]:
         # obs в диапазоне [-1..1] для всех компонент
         assert self.window.paddle is not None
         assert self.window.ball is not None
+        assert self.window.bricks is not None
 
         w = float(self.window.width)
         h = float(self.window.height)
@@ -42,6 +43,14 @@ class BreakoutEnv:
         ball_vx = float(self.window.ball.dx)  # уже нормализовано
         ball_vy = float(self.window.ball.dy)  # уже нормализовано
         paddle_x = (self.window.paddle.x / w) * 2.0 - 1.0
+        bricks_left = float(len(self.window.bricks))
+        total_bricks = max(1.0, float(getattr(self.window, "total_bricks", len(self.window.bricks))))
+        bricks_left_norm = (bricks_left / total_bricks) * 2.0 - 1.0
+        if len(self.window.bricks) > 0:
+            top_brick_y = max(b.y for b in self.window.bricks)
+            top_brick_y_norm = (top_brick_y / h) * 2.0 - 1.0
+        else:
+            top_brick_y_norm = -1.0
 
         # страховка от минимальных численных выходов за пределы
         ball_x = max(-1.0, min(1.0, ball_x))
@@ -49,10 +58,12 @@ class BreakoutEnv:
         ball_vx = max(-1.0, min(1.0, ball_vx))
         ball_vy = max(-1.0, min(1.0, ball_vy))
         paddle_x = max(-1.0, min(1.0, paddle_x))
+        bricks_left_norm = max(-1.0, min(1.0, bricks_left_norm))
+        top_brick_y_norm = max(-1.0, min(1.0, top_brick_y_norm))
 
-        return (ball_x, ball_y, ball_vx, ball_vy, paddle_x)
+        return (ball_x, ball_y, ball_vx, ball_vy, paddle_x, bricks_left_norm, top_brick_y_norm)
 
-    def step(self, action: int) -> Tuple[Tuple[float, float, float, float, float], float, bool, Dict]:
+    def step(self, action: int) -> Tuple[Tuple[float, float, float, float, float, float, float], float, bool, Dict]:
         # Управление делается через action_provider в GameWindow,
         # но step доступен для внешнего кода (например, будущего обучения).
         # Здесь мы просто пробрасываем action через input_handler, аналогично GameWindow.

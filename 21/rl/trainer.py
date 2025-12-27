@@ -9,7 +9,7 @@ from rl.dqn_agent import DQNAgent
 from rl.headless_env import HeadlessBreakoutEnv
 from rl.replay_buffer import Transition
 from rl.render_policy import RenderPolicy
-from config import CURRICULUM_LEVELS, CURRICULUM_WINDOW, CURRICULUM_WIN_RATE_THRESHOLD
+from config import CURRICULUM_LEVELS, CURRICULUM_WINDOW, CURRICULUM_WIN_RATE_THRESHOLD, R_TIMEOUT
 
 
 class TrainerThread(threading.Thread):
@@ -99,11 +99,11 @@ class TrainerThread(threading.Thread):
             
             # Более сильный штраф за очень раннюю смерть
             if episode_length < 50:
-                return -5.0
-            elif episode_length < 100:
-                return -2.0
-            else:
                 return -1.0
+            elif episode_length < 100:
+                return -0.5
+            else:
+                return -0.2
         return 0.0
 
     def run(self) -> None:
@@ -124,14 +124,22 @@ class TrainerThread(threading.Thread):
             done = False
             last_info = {}
             bricks_destroyed = 0
+            action_counts = {0: 0, 1: 0, 2: 0}
+            loss_sum = 0.0
+            loss_count = 0
 
             episode_start_time = time.time()
 
             while not done and steps < self.max_episode_steps and not self._stop_event.is_set():
                 eps = self._epsilon(self.agent.global_step)
                 action = self.agent.select_action(obs, eps)
+                action_counts[action] = action_counts.get(action, 0) + 1
 
                 next_obs, reward, done, info = self.env.step(action)
+                if (steps + 1) >= self.max_episode_steps and not done:
+                    done = True
+                    info["timeout"] = True
+                    reward += R_TIMEOUT
                 
                 # Считаем уничтоженные блоки
                 if info.get("broke_brick", False):
@@ -140,7 +148,7 @@ class TrainerThread(threading.Thread):
                 # Анти-эксплойт: добавляем штрафы за плохое поведение
                 exploit_penalty = 0.0
                 
-                if done and steps < self.max_episode_steps:
+                if done and steps < self.max_episode_steps and not info.get("timeout", False):
                     # Игра закончилась (не по таймауту)
                     early_death_penalty = self._calculate_early_death_penalty(steps, total_reward)
                     exploit_penalty += early_death_penalty
@@ -158,6 +166,9 @@ class TrainerThread(threading.Thread):
                 )
 
                 loss = self.agent.train_step()
+                if loss is not None:
+                    loss_sum += loss
+                    loss_count += 1
 
                 obs = next_obs
                 total_reward += reward
@@ -207,8 +218,12 @@ class TrainerThread(threading.Thread):
             bricks_left = int(last_info.get("bricks_left", -1))
             win = bool(last_info.get("win", False))
             lose = bool(last_info.get("lose", False))
+            timeout = bool(last_info.get("timeout", False))
             self.recent_wins.append(1 if win else 0)
             win_rate = sum(self.recent_wins) / float(len(self.recent_wins)) if len(self.recent_wins) > 0 else 0.0
+            avg_loss = (loss_sum / loss_count) if loss_count > 0 else 0.0
+            action_total = max(1, sum(action_counts.values()))
+            action_freq = {k: v / action_total for k, v in action_counts.items()}
 
             # Анти-эксплойт: минимальное число эпизодов на уровне перед переходом
             can_level_up = (
@@ -234,7 +249,7 @@ class TrainerThread(threading.Thread):
                 f"reward={total_reward:.2f} "
                 f"avg{self.log_window}_r={avg_r:.2f} "
                 f"bricks_left={bricks_left} "
-                f"win={int(win)} lose={int(lose)} "
+                f"win={int(win)} lose={int(lose)} timeout={int(timeout)} "
                 f"eps={eps:.3f} "
                 f"step={self.agent.global_step} "
                 f"level={self.difficulty_level} "
@@ -242,6 +257,8 @@ class TrainerThread(threading.Thread):
                 f"win_rate{CURRICULUM_WINDOW}={win_rate:.2f} "
                 f"avg_len={avg_episode_length:.1f} "
                 f"avg_bricks={avg_bricks_destroyed:.1f} "
+                f"avg_loss={avg_loss:.4f} "
+                f"act_freq=[{action_freq[0]:.2f},{action_freq[1]:.2f},{action_freq[2]:.2f}] "
                 f"early_death={early_death_rate:.2f} "
                 f"exploits=[ED:{self.detected_exploit_flags['early_death']} "
                 f"NP:{self.detected_exploit_flags['no_progress']}] "
