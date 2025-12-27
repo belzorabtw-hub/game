@@ -8,6 +8,19 @@ WINDOW_HEIGHT = 600
 WINDOW_TITLE = "Breakout RL"
 BACKGROUND_COLOR = (10, 20, 30)  # Темно-синий
 
+# Мир и текстуры
+WORLD_WIDTH = 1600
+WORLD_HEIGHT = 1200
+TILE_SIZE = 128
+FLOOR_TEXTURE = ":resources:images/tiles/grassCenter.png"
+WALL_TEXTURE = ":resources:images/tiles/brickGrey.png"
+CRATE_TEXTURE = ":resources:images/tiles/boxCrate_double.png"
+DOOR_TEXTURE = ":resources:images/tiles/doorClosed_mid.png"
+
+# HUD
+STARTING_HEALTH = 100
+STARTING_AMMO = 30
+
 # Платформа
 PADDLE_WIDTH = 120
 PADDLE_HEIGHT = 20

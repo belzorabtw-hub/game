@@ -18,16 +18,25 @@ from config import (
     BRICK_ROWS,
     BRICK_SIDE_MARGIN,
     BRICK_TOP_MARGIN,
+    CRATE_TEXTURE,
+    DOOR_TEXTURE,
     END_FONT_SIZE,
+    FLOOR_TEXTURE,
     PADDLE_COLOR,
     PADDLE_HEIGHT,
     PADDLE_SPEED,
     PADDLE_WIDTH,
     PADDLE_Y_OFFSET,
+    STARTING_AMMO,
+    STARTING_HEALTH,
     STATUS_FONT_SIZE,
     TEXT_COLOR,
+    TILE_SIZE,
+    WALL_TEXTURE,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
+    WORLD_HEIGHT,
+    WORLD_WIDTH,
 )
 from game.entities import Ball, Brick, Paddle
 from game.input_handler import InputHandler
@@ -66,6 +75,11 @@ class GameWindow(arcade.Window):
         self.steps_in_current_episode = 0
         self.total_bricks_destroyed = 0
         self.total_bricks = 0
+        self.world = arcade.Scene()
+        self.camera = arcade.Camera(self.width, self.height)
+        self.hud_camera = arcade.Camera(self.width, self.height)
+        self.health = STARTING_HEALTH
+        self.ammo = STARTING_AMMO
 
     def setup(self) -> None:
         self.is_game_over = False
@@ -78,7 +92,7 @@ class GameWindow(arcade.Window):
         self.last_reward = 0.0
 
         self.paddle = Paddle(
-            x=self.width / 2,
+            x=WORLD_WIDTH / 2,
             y=PADDLE_Y_OFFSET,
             width=PADDLE_WIDTH,
             height=PADDLE_HEIGHT,
@@ -94,7 +108,7 @@ class GameWindow(arcade.Window):
             dy = abs(dy) + 0.2
 
         self.ball = Ball(
-            x=self.width / 2,
+            x=WORLD_WIDTH / 2,
             y=self.paddle.top + BALL_RADIUS + 6,
             radius=BALL_RADIUS,
             dx=dx,
@@ -106,6 +120,9 @@ class GameWindow(arcade.Window):
 
         self.bricks = self._build_bricks()
         self.total_bricks = len(self.bricks)
+        self._build_world()
+        self.health = STARTING_HEALTH
+        self.ammo = STARTING_AMMO
 
         if self.action_provider is not None:
             self.visual_episode += 1
@@ -114,14 +131,14 @@ class GameWindow(arcade.Window):
     def _build_bricks(self) -> List[Brick]:
         bricks: List[Brick] = []
 
-        available_width = self.width - (2 * BRICK_SIDE_MARGIN)
+        available_width = WORLD_WIDTH - (2 * BRICK_SIDE_MARGIN)
         total_gap = (BRICK_COLS - 1) * BRICK_GAP
         brick_width = (available_width - total_gap) / BRICK_COLS
 
         for row in range(BRICK_ROWS):
             for col in range(BRICK_COLS):
                 x = BRICK_SIDE_MARGIN + brick_width / 2 + col * (brick_width + BRICK_GAP)
-                y = self.height - BRICK_TOP_MARGIN - row * (BRICK_HEIGHT + BRICK_GAP)
+                y = WORLD_HEIGHT - BRICK_TOP_MARGIN - row * (BRICK_HEIGHT + BRICK_GAP)
                 bricks.append(
                     Brick(
                         x=x,
@@ -133,11 +150,60 @@ class GameWindow(arcade.Window):
                 )
         return bricks
 
+    def _build_world(self) -> None:
+        self.world = arcade.Scene()
+        floor_list = arcade.SpriteList()
+        wall_list = arcade.SpriteList()
+        prop_list = arcade.SpriteList()
+
+        tiles_x = math.ceil(WORLD_WIDTH / TILE_SIZE)
+        tiles_y = math.ceil(WORLD_HEIGHT / TILE_SIZE)
+        for col in range(tiles_x):
+            for row in range(tiles_y):
+                floor = arcade.Sprite(FLOOR_TEXTURE, scale=1.0)
+                floor.center_x = col * TILE_SIZE + TILE_SIZE / 2
+                floor.center_y = row * TILE_SIZE + TILE_SIZE / 2
+                floor_list.append(floor)
+
+        wall_positions = [
+            (TILE_SIZE * 1.5, WORLD_HEIGHT * 0.75),
+            (WORLD_WIDTH - TILE_SIZE * 1.5, WORLD_HEIGHT * 0.65),
+            (WORLD_WIDTH * 0.5, WORLD_HEIGHT - TILE_SIZE * 1.5),
+        ]
+        for x, y in wall_positions:
+            wall = arcade.Sprite(WALL_TEXTURE, scale=0.8)
+            wall.center_x = x
+            wall.center_y = y
+            wall_list.append(wall)
+
+        crate_positions = [
+            (WORLD_WIDTH * 0.25, WORLD_HEIGHT * 0.35),
+            (WORLD_WIDTH * 0.75, WORLD_HEIGHT * 0.4),
+            (WORLD_WIDTH * 0.6, WORLD_HEIGHT * 0.2),
+        ]
+        for x, y in crate_positions:
+            crate = arcade.Sprite(CRATE_TEXTURE, scale=0.7)
+            crate.center_x = x
+            crate.center_y = y
+            prop_list.append(crate)
+
+        door = arcade.Sprite(DOOR_TEXTURE, scale=0.7)
+        door.center_x = WORLD_WIDTH * 0.5
+        door.center_y = WORLD_HEIGHT * 0.15
+        prop_list.append(door)
+
+        self.world.add_sprite_list("floor", sprite_list=floor_list)
+        self.world.add_sprite_list("walls", sprite_list=wall_list)
+        self.world.add_sprite_list("props", sprite_list=prop_list)
+
     def on_draw(self) -> None:
         self.clear()
 
         assert self.paddle is not None
         assert self.ball is not None
+
+        self.camera.use()
+        self.world.draw()
 
         # Платформа
         arcade.draw_lrbt_rectangle_filled(
@@ -151,6 +217,7 @@ class GameWindow(arcade.Window):
         for b in self.bricks:
             arcade.draw_lrbt_rectangle_filled(b.left, b.right, b.bottom, b.top, b.color)
 
+        self.hud_camera.use()
         # Статус
         bricks_left = len(self.bricks)
         arcade.draw_text(
@@ -160,13 +227,31 @@ class GameWindow(arcade.Window):
             TEXT_COLOR,
             font_size=STATUS_FONT_SIZE,
         )
-        
+
         arcade.draw_text(
             f"Эпизод: {self.visual_episode}",
             12,
             self.height - 58,
             TEXT_COLOR,
             font_size=STATUS_FONT_SIZE,
+        )
+
+        arcade.draw_text(
+            f"Здоровье: {self.health}",
+            self.width - 12,
+            self.height - 28,
+            TEXT_COLOR,
+            font_size=STATUS_FONT_SIZE,
+            anchor_x="right",
+        )
+
+        arcade.draw_text(
+            f"Патроны: {self.ammo}",
+            self.width - 12,
+            self.height - 58,
+            TEXT_COLOR,
+            font_size=STATUS_FONT_SIZE,
+            anchor_x="right",
         )
 
         if self.is_game_over:
@@ -225,13 +310,13 @@ class GameWindow(arcade.Window):
             move_dir = 1.0
 
         self.paddle.x += move_dir * self.paddle.speed * delta_time
-        self.paddle.clamp_to_screen(self.width)
+        self.paddle.clamp_to_screen(WORLD_WIDTH)
 
         # Движение шара
         self.ball.x += self.ball.dx * self.ball.speed * delta_time
         self.ball.y += self.ball.dy * self.ball.speed * delta_time
 
-        reflect_ball_from_walls(self.ball, self.width, self.height)
+        reflect_ball_from_walls(self.ball, WORLD_WIDTH, WORLD_HEIGHT)
         self.last_hit_paddle = reflect_ball_from_paddle(self.ball, self.paddle)
 
         # Столкновения с блоками: за кадр ломаем максимум 1 блок (стабильнее)
@@ -254,6 +339,22 @@ class GameWindow(arcade.Window):
         if len(self.bricks) == 0:
             self.is_game_over = True
             self.is_win = True
+
+        self._center_camera_to_player()
+
+    def _center_camera_to_player(self) -> None:
+        if self.paddle is None:
+            return
+        screen_center_x = self.paddle.x - self.camera.viewport_width / 2
+        screen_center_y = self.paddle.y - self.camera.viewport_height / 2
+        screen_center_x = max(0, min(screen_center_x, WORLD_WIDTH - self.camera.viewport_width))
+        screen_center_y = max(0, min(screen_center_y, WORLD_HEIGHT - self.camera.viewport_height))
+        self.camera.move_to((screen_center_x, screen_center_y), 0.1)
+
+    def on_resize(self, width: float, height: float) -> None:
+        super().on_resize(width, height)
+        self.camera.resize(int(width), int(height))
+        self.hud_camera.resize(int(width), int(height))
 
     def on_key_press(self, key: int, modifiers: int) -> None:
         if self.is_game_over and key == arcade.key.R:
